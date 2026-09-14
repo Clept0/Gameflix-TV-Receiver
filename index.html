@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gameflix TV Companion Receiver & Three.js Studio</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0; 
+            padding: 0;
+            background: #0d0f14; 
+            color: #f0f4f8; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; 
+            overflow: hidden; 
+            user-select: none;
+        }
+
+        #canvas-container { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            z-index: 1; 
+        }
+
+        /* Top Bar & Connection Header */
+        #header-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(18, 22, 32, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .app-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.connected {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Widgets Overlay Layout */
+        .widgets-grid {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 100;
+            display: grid;
+            grid-template-columns: 280px 280px 1fr;
+            gap: 16px;
+            pointer-events: none;
+        }
+
+        .widget-card {
+            background: rgba(18, 22, 32, 0.85);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+        }
+
+        .widget-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* TV Remote Visualizer */
+        .remote-dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            width: 140px;
+            margin: 0 auto 10px auto;
+        }
+        .remote-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            border-radius: 6px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .remote-btn.active {
+            background: #3b82f6;
+            color: #fff;
+            transform: scale(0.95);
+            box-shadow: 0 0 12px #3b82f6;
+        }
+
+        /* Gamepad Visualizer */
+        .gamepad-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 100px;
+        }
+        .stick-circle {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 2px solid #334155;
+            background: #0f172a;
+            position: relative;
+        }
+        .stick-knob {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #38bdf8;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #38bdf8;
+            transition: transform 0.05s linear;
+        }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 32px);
+            gap: 8px;
+        }
+        .gamepad-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #94a3b8;
+        }
+        .gamepad-btn.active {
+            background: #10b981;
+            color: #fff;
+            box-shadow: 0 0 12px #10b981;
+        }
+
+        /* Air Mouse Pointer */
+        #pointer {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(244, 63, 94, 0.9);
+            box-shadow: 0 0 16px rgba(244, 63, 94, 0.8), 0 0 0 4px rgba(244, 63, 94, 0.2);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            display: none;
+            transition: width 0.1s, height 0.1s;
+        }
+        #pointer.clicking {
+            background: #e11d48;
+            width: 28px;
+            height: 28px;
+            box-shadow: 0 0 24px #e11d48, 0 0 0 8px rgba(225, 29, 72, 0.4);
+        }
+
+        /* Log / Telemetry View */
+        .telemetry-log {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            height: 90px;
+            overflow-y: auto;
+            background: #090b10;
+            border-radius: 6px;
+            padding: 8px;
+            border: 1px solid #1e293b;
+        }
+        .log-entry {
+            margin-bottom: 4px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="header-bar">
+        <div class="title-group">
+            <span style="font-size: 1.4rem;">🎮</span>
+            <div>
+                <div class="app-title">Gameflix Three.js TV Studio</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Companion Mobile Input & 17-Keypoint AR Pose Streamer</div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <span style="font-size: 0.75rem; color: #94a3b8;">WS:</span>
+                <input id="ws-input-host" type="text" placeholder="localhost:8080" style="background: transparent; border: none; color: #fff; font-family: monospace; font-size: 0.8rem; width: 140px; outline: none;">
+                <button id="ws-connect-btn" style="background: #3b82f6; border: none; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer;">Connect</button>
+            </div>
+            <div id="telemetry-rate" style="font-size: 0.8rem; color: #64748b;">0 pkts/s</div>
+            <div id="ws-badge" class="status-badge">
+                <span class="status-dot"></span>
+                <span id="ws-status-text">Disconnected</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="pointer"></div>
+    <div id="canvas-container"></div>
+
+    <div class="widgets-grid">
+        <!-- Widget 1: Remote Control -->
+        <div class="widget-card">
+            <div class="widget-title">
+                <span>TV Remote (0x01)</span>
+                <span id="remote-state-label" style="color: #3b82f6;">Idle</span>
+            </div>
+            <div class="remote-dpad">
+                <div></div>
+                <div class="remote-btn" id="btn-up">▲</div>
+                <div></div>
+                <div class="remote-btn" id="btn-left">◀</div>
+                <div class="remote-btn" id="btn-ok">OK</div>
+                <div class="remote-btn" id="btn-right">▶</div>
+                <div></div>
+                <div class="remote-btn" id="btn-down">▼</div>
+                <div></div>
+            </div>
+            <div style="display: flex; justify-content: space-around;">
+                <div class="remote-btn" id="btn-back" style="flex: 1; margin: 2px;">Back</div>
+                <div class="remote-btn" id="btn-home" style="flex: 1; margin: 2px;">Home</div>
+                <div class="remote-btn" id="btn-menu" style="flex: 1; margin: 2px;">Menu</div>
+            </div>
+        </div>
+
+        <!-- Widget 2: Gamepad -->
+        <div class="widget-card">
+            <div class="widget-title">
+                <span>Gamepad (0x03)</span>
+                <span id="gamepad-state-label" style="color: #10b981;">(0.00, 0.00)</span>
+            </div>
+            <div class="gamepad-container">
+                <div class="stick-circle">
+                    <div class="stick-knob" id="stick-knob"></div>
+                </div>
+                <div class="btn-grid">
+                    <div class="gamepad-btn" id="gp-x">X</div>
+                    <div class="gamepad-btn" id="gp-y">Y</div>
+                    <div class="gamepad-btn" id="gp-a">A</div>
+                    <div class="gamepad-btn" id="gp-b">B</div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-top: 4px;">
+                <span id="gp-l1">L1: 0</span>
+                <span id="gp-r1">R1: 0</span>
+                <span id="gp-start">START: 0</span>
+            </div>
+        </div>
+
+        <!-- Widget 3: AR Pose & Telemetry -->
+        <div class="widget-card">
+            <div class="widget-title">
+                <span>AR Pose 17-Keypoints (0x04) & Telemetry</span>
+                <span id="pose-fps-label" style="color: #a855f7;">0 FPS</span>
+            </div>
+            <div class="telemetry-log" id="log-container">
+                <div class="log-entry" style="color: #64748b;">Waiting for incoming WebSocket packets...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. THREE.JS 3D SCENE & SKELETON SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0d0f14);
+
+        // Grid floor
+        const grid = new THREE.GridHelper(10, 20, 0x1e293b, 0x131b2e);
+        grid.position.y = -1.5;
+        scene.add(grid);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 3.2);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 17 Pose Joints (Spheres)
+        const joints = [];
+        const jointGeo = new THREE.SphereGeometry(0.045, 16, 16);
+        const jointColors = [
+            0xfacc15, 0xfacc15, 0xfacc15, 0xfacc15, 0xfacc15, // Head / Face (Yellow)
+            0x38bdf8, 0x38bdf8, 0x38bdf8, 0x38bdf8, 0x38bdf8, 0x38bdf8, // Upper Body (Cyan)
+            0x10b981, 0x10b981, 0x10b981, 0x10b981, 0x10b981, 0x10b981  // Lower Body (Green)
+        ];
+
+        for (let i = 0; i < 17; i++) {
+            const mat = new THREE.MeshStandardMaterial({ color: jointColors[i], emissive: jointColors[i], emissiveIntensity: 0.5, roughness: 0.2 });
+            const sphere = new THREE.Mesh(jointGeo, mat);
+            sphere.visible = false;
+            scene.add(sphere);
+            joints.push(sphere);
+        }
+
+        // COCO 17 Keypoints Bone Connections
+        const bonePairs = [
+            [0, 1], [0, 2], [1, 3], [2, 4],             // Head
+            [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],    // Arms
+            [5, 11], [6, 12], [11, 12],                 // Torso
+            [11, 13], [13, 15], [12, 14], [14, 16]     // Legs
+        ];
+
+        const bones = [];
+        const boneMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, emissive: 0x334155, emissiveIntensity: 0.2 });
+        const boneGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 8);
+
+        for (let i = 0; i < bonePairs.length; i++) {
+            const cylinder = new THREE.Mesh(boneGeo, boneMat);
+            cylinder.visible = false;
+            scene.add(cylinder);
+            bones.push(cylinder);
+        }
+
+        function updateBoneCylinder(boneMesh, posA, posB) {
+            const dist = posA.distanceTo(posB);
+            if (dist < 0.01) {
+                boneMesh.visible = false;
+                return;
+            }
+            boneMesh.visible = true;
+            boneMesh.scale.set(1, dist, 1);
+            boneMesh.position.copy(posA).add(posB).multiplyScalar(0.5);
+            boneMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), posB.clone().sub(posA).normalize());
+        }
+
+        // --- 2. AIR MOUSE POINTER ---
+        const pointer = document.getElementById('pointer');
+        let pointerX = window.innerWidth / 2;
+        let pointerY = window.innerHeight / 2;
+
+        // --- 3. TELEMETRY & LOGGING ---
+        let packetCount = 0;
+        let posePacketCount = 0;
+        let lastStatTime = performance.now();
+
+        setInterval(() => {
+            const now = performance.now();
+            const dt = (now - lastStatTime) / 1000;
+            document.getElementById('telemetry-rate').innerText = `${Math.round(packetCount / dt)} pkts/s`;
+            document.getElementById('pose-fps-label').innerText = `${Math.round(posePacketCount / dt)} FPS`;
+            packetCount = 0;
+            posePacketCount = 0;
+            lastStatTime = now;
+        }, 1000);
+
+        function logEvent(msg, color = '#cbd5e1') {
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = color;
+            entry.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            container.appendChild(entry);
+            if (container.children.length > 30) container.removeChild(container.firstChild);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // --- 4. WEBSOCKET CONNECTION ---
+        let ws = null;
+        const defaultHost = window.location.hostname ? `${window.location.hostname}:${window.location.port || '8080'}` : 'localhost:8080';
+        const hostInput = document.getElementById('ws-input-host');
+        hostInput.value = localStorage.getItem('gameflix_ws_endpoint') || defaultHost;
+
+        function connectWebSocket(targetEndpoint) {
+            if (ws) {
+                try { ws.close(); } catch(e) {}
+            }
+
+            const isSecure = window.location.protocol === 'https:' && !targetEndpoint.startsWith('localhost') && !targetEndpoint.startsWith('127.0.0.1');
+            const proto = targetEndpoint.startsWith('ws://') || targetEndpoint.startsWith('wss://') ? '' : (isSecure ? 'wss://' : 'ws://');
+            const fullUrl = targetEndpoint.startsWith('ws://') || targetEndpoint.startsWith('wss://') ? targetEndpoint : `${proto}${targetEndpoint}`;
+
+            logEvent(`Connecting to WebSocket at ${fullUrl}...`, '#38bdf8');
+            try {
+                ws = new WebSocket(fullUrl);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = () => {
+                    document.getElementById('ws-badge').classList.add('connected');
+                    document.getElementById('ws-status-text').innerText = `Connected (${targetEndpoint})`;
+                    logEvent(`Connected successfully to ${fullUrl}`, '#10b981');
+                    localStorage.setItem('gameflix_ws_endpoint', targetEndpoint);
+                };
+
+                ws.onclose = () => {
+                    document.getElementById('ws-badge').classList.remove('connected');
+                    document.getElementById('ws-status-text').innerText = 'Disconnected';
+                    logEvent('WebSocket connection closed.', '#ef4444');
+                };
+
+                ws.onerror = (err) => {
+                    document.getElementById('ws-badge').classList.remove('connected');
+                    document.getElementById('ws-status-text').innerText = 'Error';
+                };
+
+                ws.onmessage = handleWebSocketMessage;
+            } catch (err) {
+                logEvent(`Connection setup error: ${err.message}`, '#ef4444');
+            }
+        }
+
+        document.getElementById('ws-connect-btn').addEventListener('click', () => {
+            const endpoint = hostInput.value.trim();
+            if (endpoint) connectWebSocket(endpoint);
+        });
+
+        function handleWebSocketMessage(event) {
+            if (!(event.data instanceof ArrayBuffer)) return;
+            packetCount++;
+
+            const view = new DataView(event.data);
+            const opcode = view.getUint8(0);
+
+            switch (opcode) {
+                case 0x01: {
+                    const keyCode = view.getUint8(1);
+                    const state = view.getUint8(2);
+                    handleRemoteEvent(keyCode, state);
+                    break;
+                }
+                case 0x02: {
+                    const dYaw = view.getFloat32(1, true);
+                    const dPitch = view.getFloat32(5, true);
+                    const clickMask = view.getUint8(9);
+                    handleAirMouseEvent(dYaw, dPitch, clickMask);
+                    break;
+                }
+                case 0x03: {
+                    const stickX = view.getFloat32(1, true);
+                    const stickY = view.getFloat32(5, true);
+                    const btnMask = view.getUint16(9, true);
+                    handleGamepadEvent(stickX, stickY, btnMask);
+                    break;
+                }
+                case 0x04: {
+                    posePacketCount++;
+                    handlePoseEvent(view);
+                    break;
+                }
+            }
+        }
+
+        // Auto-connect on load
+        connectWebSocket(hostInput.value);
+
+        // Handlers
+        function handleRemoteEvent(keyCode, state) {
+            const keyNames = {
+                0x01: 'UP', 0x02: 'DOWN', 0x03: 'LEFT', 0x04: 'RIGHT', 0x05: 'OK',
+                0x06: 'BACK', 0x07: 'HOME', 0x08: 'MENU',
+                0x10: 'VOL+', 0x11: 'VOL-', 0x12: 'MUTE',
+                0x20: 'CH+', 0x21: 'CH-',
+                0x30: 'PLAY', 0x31: 'PAUSE', 0x32: 'PLAY/PAUSE', 0x33: 'STOP'
+            };
+            const btnMap = {
+                0x01: 'btn-up', 0x02: 'btn-down', 0x03: 'btn-left', 0x04: 'btn-right', 0x05: 'btn-ok',
+                0x06: 'btn-back', 0x07: 'btn-home', 0x08: 'btn-menu'
+            };
+
+            const name = keyNames[keyCode] || `0x${keyCode.toString(16).toUpperCase()}`;
+            document.getElementById('remote-state-label').innerText = `${name} (${state === 1 ? 'Down' : state === 2 ? 'Click' : 'Up'})`;
+
+            const elemId = btnMap[keyCode];
+            if (elemId) {
+                const el = document.getElementById(elemId);
+                if (el) {
+                    el.classList.add('active');
+                    setTimeout(() => el.classList.remove('active'), 200);
+                }
+            }
+            logEvent(`[Remote] Key ${name} (Op: 0x01)`, '#38bdf8');
+        }
+
+        function handleAirMouseEvent(dYaw, dPitch, clickMask) {
+            pointerX = Math.max(10, Math.min(window.innerWidth - 10, pointerX + dYaw * 22));
+            pointerY = Math.max(10, Math.min(window.innerHeight - 10, pointerY - dPitch * 22));
+
+            pointer.style.display = 'block';
+            pointer.style.left = `${pointerX}px`;
+            pointer.style.top = `${pointerY}px`;
+
+            const leftClick = (clickMask & 0x01) !== 0;
+            const rightClick = (clickMask & 0x02) !== 0;
+            const recenter = (clickMask & 0x04) !== 0;
+
+            if (recenter) {
+                pointerX = window.innerWidth / 2;
+                pointerY = window.innerHeight / 2;
+                logEvent('[AirMouse] Recenter triggered', '#f43f5e');
+            }
+
+            if (leftClick || rightClick) {
+                pointer.classList.add('clicking');
+            } else {
+                pointer.classList.remove('clicking');
+            }
+        }
+
+        function handleGamepadEvent(stickX, stickY, btnMask) {
+            document.getElementById('gamepad-state-label').innerText = `(${stickX.toFixed(2)}, ${stickY.toFixed(2)})`;
+            
+            const knob = document.getElementById('stick-knob');
+            const maxOffset = 22;
+            knob.style.transform = `translate(calc(-50% + ${stickX * maxOffset}px), calc(-50% - ${stickY * maxOffset}px))`;
+
+            const a = (btnMask & 0x0001) !== 0;
+            const b = (btnMask & 0x0002) !== 0;
+            const x = (btnMask & 0x0004) !== 0;
+            const y = (btnMask & 0x0008) !== 0;
+            const l1 = (btnMask & 0x0010) !== 0;
+            const r1 = (btnMask & 0x0020) !== 0;
+            const start = (btnMask & 0x0100) !== 0;
+
+            document.getElementById('gp-a').classList.toggle('active', a);
+            document.getElementById('gp-b').classList.toggle('active', b);
+            document.getElementById('gp-x').classList.toggle('active', x);
+            document.getElementById('gp-y').classList.toggle('active', y);
+            document.getElementById('gp-l1').innerText = `L1: ${l1 ? 1 : 0}`;
+            document.getElementById('gp-r1').innerText = `R1: ${r1 ? 1 : 0}`;
+            document.getElementById('gp-start').innerText = `START: ${start ? 1 : 0}`;
+        }
+
+        function handlePoseEvent(view) {
+            for (let i = 0; i < 17; i++) {
+                const offset = 1 + (i * 12);
+                const normX = view.getFloat32(offset, true);
+                const normY = view.getFloat32(offset + 4, true);
+                const conf = view.getFloat32(offset + 8, true);
+
+                if (conf > 0.35) {
+                    const worldX = (normX - 0.5) * 2.8;
+                    const worldY = -(normY - 0.5) * 2.8;
+                    joints[i].position.set(worldX, worldY, 0);
+                    joints[i].visible = true;
+                } else {
+                    joints[i].visible = false;
+                }
+            }
+
+            // Update skeleton bones connecting visible joints
+            for (let b = 0; b < bonePairs.length; b++) {
+                const [idxA, idxB] = bonePairs[b];
+                if (joints[idxA].visible && joints[idxB].visible) {
+                    updateBoneCylinder(bones[b], joints[idxA].position, joints[idxB].position);
+                } else {
+                    bones[b].visible = false;
+                }
+            }
+        }
+
+        // Render Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
