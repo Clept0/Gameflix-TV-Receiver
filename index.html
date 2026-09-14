@@ -438,7 +438,7 @@
 
         // --- 4. WEBSOCKET CONNECTION ---
         let ws = null;
-        const defaultHost = window.location.hostname ? `${window.location.hostname}:${window.location.port || '8080'}` : 'localhost:8080';
+        const defaultHost = 'memorabilia-aaron-aside-come.trycloudflare.com';
         const hostInput = document.getElementById('ws-input-host');
         hostInput.value = localStorage.getItem('gameflix_ws_endpoint') || defaultHost;
 
